@@ -20,6 +20,8 @@ method parameters
 #include "TMVA/Reader.h"
 #include "TMVA/DataLoader.h"
 #include "TMVA/PyMethodBase.h"
+#include <iostream>
+#include <stdio.h>
 
 
 TString pythonSrc = "\
@@ -41,19 +43,24 @@ model.add(Dense(8, activation=\"relu\"))\n\
 model.add(Dropout(0.1))\n\
 model.add(Dense(2, activation=\"softmax\"))\n\
 model.compile(loss=\"categorical_crossentropy\", optimizer=Adam(lr=0.00005), metrics=[\"accuracy\",])\n\
-model.save(\"kerasModelClassification2.h5\")\n";
+model.save(\"./output/ttH_Classification_SimpleExample/kerasModelClassification2.h5\")\n";
 
-void ttH_Classification_SimpleExample(const char* fileNameChar="ttH_Classification_SimpleExample", int year=1, int CPmix=59,int repeatS=1, int repeatB=1, int nSTrain=0, int nBTrain=0, int crosstesting=0) { 
+void ttH_Classification_SimpleExample(const char* fileNameChar="ttH_Classification_SimpleExample", int year=1, int CPmix=59,int nSTrain=0, int nBTrain=0) { 
 
   TMVA::Tools::Instance();
 
   std::string fileName=fileNameChar;
   std::string dataName="dataset";
 
-  auto outputFile = TFile::Open(fileName+"_"+CPmix+"_"+year+"_repeatS_"+repeatS+"_repeatB_"+repeatB+"_TrS_"+nSTrain+"_TrB_"+nBTrain+"_crosstesting_"+crosstesting+".root", "RECREATE");
+  if (system("mkdir ./output/ttH_Classification_SimpleExample") != 0)
+    {
+      cout << "I'm so sorry. I was not" << endl;
+      cout << "able to create your directory. Is it already there?" << endl;
+    }
 
-  TMVA::Factory factory(fileName+"_"+CPmix+"_"+year+"_repeatS_"+repeatS+"_repeatB_"+repeatB+"_TrS_"+nSTrain+"_TrB_"+nBTrain+"_crosstesting_"+\
-crosstesting, outputFile,
+  auto outputFile = TFile::Open("./output/ttH_Classification_SimpleExample/"+fileName+"_"+CPmix+"_"+year+"_TrS_"+nSTrain+"_TrB_"+nBTrain+".root", "RECREATE");
+
+  TMVA::Factory factory(fileName+"_"+CPmix+"_"+year+"_TrS_"+nSTrain+"_TrB_"+nBTrain, outputFile,
 			"!V:ROC:Silent:Color:DrawProgressBar:Transformations=N:AnalysisType=Classification" ); 
 
   TString SMfile2016 = "newSamples/DiLepRegion/2016/DiLepRegion/TTH_DiLepRegion.root";
@@ -115,7 +122,7 @@ The next step is to declare the DataLoader class that deals with input variables
 Define the input variables that shall be used for the MVA training
 note that you may also use variable expressions, which can be parsed by TTree::Draw( "expression" )]
   ***/
-  TMVA::DataLoader * loader = new TMVA::DataLoader(dataName+CPmix+"_"+year+"_repeatS_"+repeatS+"_repeatB_"+repeatB+"_TrS_"+nSTrain+"_TrB_"+nBTrain+"_crosstesting_"+crosstesting);
+  TMVA::DataLoader * loader = new TMVA::DataLoader("./output/ttH_Classification_SimpleExample/"+dataName+CPmix+"_"+year+"_TrS_"+nSTrain+"_TrB_"+nBTrain);
 
   loader->AddVariable("avg_dr_jet");
   loader->AddVariable("dr_leps");
@@ -174,20 +181,21 @@ note that you may also use variable expressions, which can be parsed by TTree::D
   //GenerateKerasModel
   std::cout << "Generate keras model..." << std::endl;
   UInt_t ret;
-  ret = gSystem->Exec("echo '"+pythonSrc+"' > generateKerasModelClassification2.py");
+  ret = gSystem->Exec("echo '"+pythonSrc+"' > ./output/ttH_Classification_SimpleExample/generateKerasModelClassification2.py");
   if(ret!=0){
     std::cout << "[ERROR] Failed to write python code to file" << std::endl;
     return 1;
   }
-  ret = gSystem->Exec("python generateKerasModelClassification2.py");
+  ret = gSystem->Exec("python ./output/ttH_Classification_SimpleExample/generateKerasModelClassification2.py");
   if(ret!=0){
     std::cout << "[ERROR] Failed to generate model using python" << std::endl;
     return 1;
    }
 
-  TMVA::PyMethodBase::PyInitialize();
-  factory.BookMethod(loader, TMVA::Types::kPyKeras, "PyKeras",
-   		      "!H:!V:VarTransform=N:FilenameModel=kerasModelClassification2.h5:FilenameTrainedModel=trainedKerasModelClassification2.h5:NumEpochs=100:BatchSize=512:SaveBestOnly=true:Verbose=0:Tensorboard=./logs");
+  //TMVA::PyMethodBase::PyInitialize();
+  std::string PyKerasStr1="!H:!V:VarTransform=N:FilenameModel=./output/ttH_Classification_SimpleExample/kerasModelClassification2.h5:FilenameTrainedModel=./output/ttH_Classification_SimpleExample/";
+  
+  factory.BookMethod(loader, TMVA::Types::kPyKeras, "PyKeras",PyKerasStr1+CPmix+"_"+year+"_TrS_"+nSTrain+"_TrB_"+nBTrain+"trainedKerasModelClassification2.h5:NumEpochs=100:BatchSize=512:SaveBestOnly=true:Verbose=0:Tensorboard=./output/PyKeraslog"+CPmix+"_"+year+"_TrS_"+nSTrain+"_TrB_"+nBTrain);
 
 
   factory.BookMethod(loader,TMVA::Types::kBDT, "MBDT",
